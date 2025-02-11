@@ -2,6 +2,7 @@
 This is the official repository for `NESTFUL`.
 - Paper Title: **_NESTFUL: A Benchmark for Evaluating LLMs on Nested Sequences of API Calls_**
 - Link: https://arxiv.org/abs/2409.03797v2
+- HuggingFace Data Link: https://huggingface.co/datasets/ibm-research/nestful
 
 ### Data
 We have shared the latest NESTFUL evaluation set under `data_v2` dir.
