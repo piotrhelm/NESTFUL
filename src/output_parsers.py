@@ -171,6 +171,32 @@ def parse_granite_3_1_output(item, num_errors_parsing_pred_intent, skip_groundin
         pred_has_parsing_errors = True
     return pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors 
 
+def parse_granite_3_3_output(item, num_errors_parsing_pred_intent, skip_grounding=False):
+    pred_has_parsing_errors = False
+    pred_func_calls, gold_func_calls = [], []
+    pred_dict_list, gold_dict_list = [], []
+    ## Gold
+    gold_dict_list = json.loads(item['output'])
+    if skip_grounding:
+        gold_func_calls = [json.dumps(func) for func in gold_dict_list]
+    else:
+        gold_func_calls = ground_seq_nested_repsonse(gold_dict_list)
+        gold_func_calls = [json.dumps(func) for func in gold_func_calls]
+
+    ## Pred
+    try:
+        generated_text = item['generated_text'].replace("<|tool_call|>", "").replace("<tool_call>", "")
+        pred_dict_list = json.loads(generated_text)
+        if skip_grounding:
+            pred_func_calls = [json.dumps(func) for func in pred_dict_list]
+        else:
+            pred_func_calls = ground_seq_nested_repsonse(pred_dict_list) if 'label' in generated_text else pred_dict_list
+            pred_func_calls = [json.dumps(func) for func in pred_func_calls]
+    except:
+        num_errors_parsing_pred_intent += 1
+        pred_has_parsing_errors = True
+    return pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors 
+
 def parse_llama_3_output(item, num_errors_parsing_pred_intent, skip_grounding=False):
     pred_has_parsing_errors = False
     pred_func_calls, gold_func_calls = [], []
@@ -185,7 +211,7 @@ def parse_llama_3_output(item, num_errors_parsing_pred_intent, skip_grounding=Fa
 
     ## Pred
     try:
-        gen_text = item['generated_text'].strip()
+        gen_text = item['generated_text'].replace('<|eom_id|>', '').strip()
         if gen_text.endswith("'"):
             gen_text = gen_text[:-1]
         if not gen_text.startswith('['):
@@ -218,7 +244,7 @@ def parse_llama_3_70b_instruct(item, num_errors_parsing_pred_intent, skip_ground
         gold_func_calls = [json.dumps(func) for func in gold_func_calls]
     ## Pred
     try:
-        pred = item['generated_text'].strip()
+        pred = item['generated_text'].replace('<|eom_id|>', '').strip()
         pred_dict_list = json.loads(pred)        
         pred_dict_list = [p for p in pred_dict_list if not p['name'] == "var_result"]
         if skip_grounding:

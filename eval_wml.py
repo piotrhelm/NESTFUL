@@ -1,0 +1,129 @@
+import os, json, argparse
+from src.instruct_data_prep import get_instruct_data
+from tqdm import tqdm
+from src.utils import read_jsonlines, write_jsonlines
+
+from ibm_watsonx_ai import APIClient
+from ibm_watsonx_ai.foundation_models import ModelInference
+from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
+
+from huggingface_hub import login
+
+login(token="")
+
+model_select = {
+    "granite-3-3-8b-instruct": {
+        "model": "ibm-granite/granite-3.3-8b-instruct",
+        "model_name": "granite-3.3-8b-instruct",
+        "model_name_wml": "ibm/granite-3-3-8b-instruct"
+    },
+    "Llama-3.3-70B-Instruct": {
+        "model": "meta-llama/Llama-3.3-70B-Instruct",
+        "model_name": "Llama-3.3-70B-Instruct",
+        "model_name_wml": "meta-llama/llama-3-3-70b-instruct"
+    },
+    "Llama-3.1-70B-Instruct": {
+        "model": "meta-llama/Llama-3.1-70B-Instruct",
+        "model_name": "Llama-3.1-70B-Instruct",
+        "model_name_wml": "meta-llama/llama-3-1-70b-instruct"
+    }
+}
+
+model = 'Llama-3.1-70B-Instruct'
+
+watsonx_credentials = {
+    "apikey": "",
+    "url": "https://yp-qa.ml.cloud.ibm.com",
+    "project_id":  ""
+}
+
+args = {}
+generate_params = {
+    GenParams.DECODING_METHOD: (
+        "greedy" if not args.get("do_sample", None) else "sample"
+    ),
+    GenParams.LENGTH_PENALTY: args.get("length_penalty", None),
+    GenParams.TEMPERATURE: args.get("temperature", 0.0),
+    GenParams.TOP_P: args.get("top_p", None),
+    GenParams.TOP_K: args.get("top_k", None),
+    GenParams.RANDOM_SEED: args.get("seed", 42),
+    GenParams.REPETITION_PENALTY: args.get("repetition_penalty", None),
+    GenParams.MIN_NEW_TOKENS: args.get("min_new_tokens", None),
+    GenParams.MAX_NEW_TOKENS: args.get("max_new_tokens", 1000),
+    GenParams.STOP_SEQUENCES: args.get("stop_sequences", None),
+    GenParams.TIME_LIMIT: args.get("time_limit", None),
+    GenParams.TRUNCATE_INPUT_TOKENS: args.get("truncate_input_tokens", None),
+    # This is required to get token likelihood
+    # GenParams.RETURN_OPTIONS: {
+    #     "generated_tokens": True,
+    #     "input_tokens": True,
+    #     "token_logprobs": True,
+    #     "token_ranks": True,
+    # },
+}
+generate_params = {i: v for i, v in generate_params.items() if v is not None}
+
+import sys
+
+sys.argv = [
+    '',
+    '--model', model_select[model]["model"],
+    '--model_name', model_select[model]["model_name"],
+    '--save_directory', 'results',
+    '--dataset', '/Users/piotrhelm/IBM/NESTFUL/data_v2/nestful_data.jsonl',
+    '--icl_count', '3',
+    '--temperature', '0.0',
+    '--max_tokens', '1000',
+    '--batch_size', '32'
+]
+
+# Argument parser
+parser = argparse.ArgumentParser()
+parser.add_argument("--model", type=str)
+parser.add_argument("--model_name", type=str)
+parser.add_argument("--save_directory", type=str, default='results')
+parser.add_argument("--dataset", type=str, default="ibm-research/nestful")
+parser.add_argument("--icl_count", default=3, type=int)  
+parser.add_argument("--temperature", type=float, default=0.0)
+parser.add_argument("--max_tokens", type=int, default=1000)
+parser.add_argument("--batch_size", type=int, default=32)
+
+args = parser.parse_args()
+print(args)
+
+print("### Loading Data...")
+data = read_jsonlines(args.dataset)
+
+for i in range(len(data)):
+    data[i]["tools"] = json.dumps(data[i]["tools"])
+    data[i]["gold_answer"] = json.dumps(data[i]["gold_answer"])
+    data[i]["output"] = json.dumps(data[i]["output"])
+
+print("### Preparing Instruct Data...")
+instruct_data = get_instruct_data(data, args.model, args.model_name, args.icl_count)
+print("### Loading Model...")
+llm = ModelInference(
+    model_id=model_select[model]["model_name_wml"],
+    api_client=APIClient(watsonx_credentials),
+    project_id=watsonx_credentials["project_id"],
+)
+prompts = [sample["input"] for sample in instruct_data][:100]
+
+print("### Starting Generation...")
+response, output_list = [], []
+for idx, prompt in tqdm(enumerate(prompts), total=len(prompts)):
+    output = llm.generate_text(prompt=prompt, params=generate_params)
+    response.append(output)
+    
+for idx in range(len(response)):
+    temp = instruct_data[idx]
+    temp["generated_text"] = response[idx]
+    output_list.append(temp)
+
+print("### Saving...")
+save_path = os.path.join(args.save_directory, f"nestful_{args.icl_count}", args.model_name, "output.jsonl")
+print(f"### Save Path: {save_path}")
+os.makedirs(os.path.join(args.save_directory, f"nestful_{args.icl_count}", args.model_name), exist_ok=True)
+write_jsonlines(output_list, save_path)
+
+print(f"### DONE...!!!")
