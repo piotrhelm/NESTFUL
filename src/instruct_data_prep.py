@@ -2,6 +2,8 @@ import json
 from tqdm import tqdm
 from utils import *
 from transformers import AutoTokenizer
+from src.utils import *
+from datetime import datetime
 
 def get_icl_str(icl_examples, model_name):
     exampl_str = ''
@@ -32,6 +34,10 @@ GRANITE_3_1_MODELS = [
     "granite-3.1-8b-instruct"
 ]
 
+GRANITE_3_3_MODELS = [
+    "granite-3.3-8b-instruct"
+]
+
 DEEPSEEK = [
     "DeepSeek-V3",
     "DeepSeek-R1"
@@ -39,19 +45,25 @@ DEEPSEEK = [
 
 LLAMA_MODELS = [
     "Llama-3.1-8B-Instruct",
-    "llama-3-1-70b-instruct",
+   
     "llama-3-1-405b-instruct-fp8",
     "Llama-3.2-11B-Vision-Instruct",
     "Llama-3.2-90B-Vision-Instruct"
 ]
 
+LLAMA_3_MODELS = [
+    "Llama-3.3-70B-Instruct",
+    "Llama-3.1-70B-Instruct",
+]
+
 tokenizer = ''
-def get_granite_tokenizer(BASE_MODEL):
+def get_auto_tokenizer(BASE_MODEL):
     global tokenizer
     if tokenizer:
         return tokenizer
     else:
-        tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
+        print(BASE_MODEL)
+        tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL, use_fast=True, force_download=True, trust_remote_code=True)
         return tokenizer
 
 def granite_3_1_prompt_input(input, function, icl_str, model):
@@ -60,10 +72,10 @@ def granite_3_1_prompt_input(input, function, icl_str, model):
         'content': input
     }
     prompts = [prompts]
-    tokenizer = get_granite_tokenizer(model)
+    tokenizer = get_auto_tokenizer(model)
 
     formatted_prompt = tokenizer.apply_chat_template(
-        prompts, function, tokenize=False, add_generation_prompt=True
+        prompts, function, tokenize=False, add_generation_prompt=True, strftime_now=datetime.now().strftime
     )
 
     granite_system_prompt = "You are Granite, developed by IBM. You are a helpful AI assistant with access to the following tools. When a tool is required to answer the user's query, respond with <|tool_call|> followed by a JSON list of tools used. If a tool does not exist in the provided list of tools, notify the user that you do not have the ability to fulfill the request."
@@ -72,6 +84,53 @@ def granite_3_1_prompt_input(input, function, icl_str, model):
 
     if granite_system_prompt in formatted_prompt:
         formatted_prompt = formatted_prompt.replace(granite_system_prompt, granite_system_prompt_with_nested)
+    else:
+        print("*** ERROR in Tokenization and Apply Chat-Template ***")
+    return formatted_prompt
+
+def granite_3_3_prompt_input(input, function, icl_str, model):
+    prompts = {
+        'role': 'user',
+        'content': input
+    }
+    prompts = [prompts]
+    tokenizer = get_auto_tokenizer(model)
+
+    formatted_prompt = tokenizer.apply_chat_template(
+        prompts, function, tokenize=False, add_generation_prompt=True, strftime_now=datetime.now().strftime
+    )
+
+    granite_system_prompt = "You are Granite, developed by IBM. You are a helpful assistant with access to the following tools. When a tool is required to answer the user's query, respond only with <|tool_call|> followed by a JSON list of tools used. If a tool does not exist in the provided list of tools, notify the user that you do not have the ability to fulfill the request."
+
+    granite_system_prompt_with_nested = granite_system_prompt + '\nDO NOT try to answer the user question, just invoke the tools needed to respond to the user, if any. The output MUST strictly adhere to the following JSON format: <|tool_call|>[{\"name\": \"func_name1\", \"arguments\": {\"argument1\": \"value1\", \"argument2\": \"value2\"}, \"label\": \"$var_1\"}, ... (more tool calls as required)]. Please make sure the parameter type is correct and follow the documentation for parameter format. If no function call is needed, please directly output an empty list.\nHere are some examples:\n' + icl_str
+
+    if granite_system_prompt in formatted_prompt:
+        formatted_prompt = formatted_prompt.replace(granite_system_prompt, granite_system_prompt_with_nested)
+    else:
+        print("*** ERROR in Tokenization and Apply Chat-Template ***")
+    return formatted_prompt
+
+def llama_3_3_prompt_input(input, function, icl_str, model):
+    tokenizer = get_auto_tokenizer(model)
+    
+    system_prompt = """Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.Do not use variables."""
+
+    system_prompt_with_nested = '\nDO NOT try to answer the user question, just invoke the tools needed to respond to the user, if any. The output MUST strictly adhere to the following JSON format: [{\"name\": \"func_name1\", \"arguments\": {\"argument1\": \"value1\", \"argument2\": \"value2\"}, \"label\": \"$var_1\"}, ... (more tool calls as required)]. Please make sure the parameter type is correct and follow the documentation for parameter format. If no function call is needed, please directly output an empty list.\nHere are some examples:\n' + icl_str
+    
+    # tag = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+    
+    messages = [
+        {'role': 'system', 'content': system_prompt_with_nested},
+        {"role": "user", "content": input}
+    ]
+    
+    formatted_prompt = tokenizer.apply_chat_template(
+        messages, tools=function, tokenize=False, add_generation_prompt=True
+    )
+
+    if system_prompt in formatted_prompt:
+        formatted_prompt = formatted_prompt.replace(system_prompt, "")
+        #formatted_prompt = formatted_prompt.replace(tag, system_prompt_with_nested + tag)
     else:
         print("*** ERROR in Tokenization and Apply Chat-Template ***")
     return formatted_prompt
@@ -87,7 +146,7 @@ def granite_prompt_input(input, function, icl_str):
     }
     prompts = [extra_turn] + [prompts]
     BASE_MODEL="ibm-granite/granite-3.0-8b-base"
-    tokenizer = get_granite_tokenizer(BASE_MODEL)
+    tokenizer = get_auto_tokenizer(BASE_MODEL)
     formatted_prompt = tokenizer.apply_chat_template(
         prompts, function, tokenize=False, add_generation_prompt=True
     )
@@ -98,7 +157,7 @@ def granite_prompt_input(input, function, icl_str):
 
 def deepseek_prompt_input(input, function, icl_str):
     BASE_MODEL="deepseek-ai/DeepSeek-V3-0324"
-    tokenizer_deepseek = get_granite_tokenizer(BASE_MODEL)
+    tokenizer_deepseek = get_auto_tokenizer(BASE_MODEL)
     system_prompt = "You are a helpful assistant with access to the following function calls. Your task is to produce a sequence of function calls necessary to generate response to the user utterance. Here is a list of functions in JSON format that you can invoke:\n" + json.dumps(function)  + "\nDO NOT try to answer the user question, just invoke the tools needed to respond to the user, if any. The output MUST strictly adhere to the following JSON format: [{\"name\": \"func_name1\", \"arguments\": {\"argument1\": \"value1\", \"argument2\": \"value2\"}, \"label\": \"$var_1\"}, ... (more tool calls as required)]. Please make sure the parameter type is correct and follow the documentation for parameter format. If no function call is needed, please directly output an empty list.\nHere are some examples:\n" + icl_str + "\n" 
 
     prompts = [{
@@ -126,6 +185,10 @@ def get_instruct_data(data, model, model_name, icl_ex_count=3):
             input_prompt = granite_prompt_input(sample['input'], sample['tools'], icl_str)
         elif model_name in GRANITE_3_1_MODELS:
             input_prompt = granite_3_1_prompt_input(sample['input'], json.loads(sample['tools']), icl_str, model)
+        elif model_name in GRANITE_3_3_MODELS:
+            input_prompt = granite_3_3_prompt_input(sample['input'], json.loads(sample['tools']), icl_str, model)
+        elif model_name in LLAMA_3_MODELS:
+            input_prompt = llama_3_3_prompt_input(sample['input'], json.loads(sample['tools']), icl_str, model)
         elif model_name in LLAMA_MODELS:
             input_prompt = prompt_dict["LLaMa-3.1"].format(FUNCTION_STR=json.dumps(sample['tools']), ICL_EXAMPLES=icl_str, QUERY=sample['input'])
         elif model_name in DEEPSEEK:

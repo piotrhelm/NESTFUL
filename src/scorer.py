@@ -21,12 +21,18 @@ GRANITE_3_1_MODELS = [
     "granite-3.1-8b-instruct"
 ]
 
+GRANITE_3_3_MODELS = [
+    "granite-3.3-8b-instruct"
+]
+
 LLAMA_MODELS = [
     "Llama-3.1-8B-Instruct",
     "llama-3-1-70b-instruct",
     "llama-3-1-405b-instruct-fp8",
     "Llama-3.2-11B-Vision-Instruct",
-    "Llama-3.2-90B-Vision-Instruct"
+    "Llama-3.2-90B-Vision-Instruct",
+    "Llama-3.3-70B-Instruct",
+    "Llama-3.1-70B-Instruct"
 ]
 
 def listit(t):
@@ -183,8 +189,10 @@ def calculate_scores(predictions, model_name, executable_func_dir, intents_only=
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_granite_3_output(item, num_errors_parsing_pred_intent)
         elif model_name in GRANITE_3_1_MODELS:
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_granite_3_1_output(item, num_errors_parsing_pred_intent)
+        elif model_name in GRANITE_3_3_MODELS:
+            pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_granite_3_3_output(item, num_errors_parsing_pred_intent)
         elif model_name in LLAMA_MODELS:
-            pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_llama_3_output(item, num_errors_parsing_pred_intent)
+            pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_llama_3_70b_instruct(item, num_errors_parsing_pred_intent)
         elif model_name in DEEPSEEK:
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_deepseek_output(item, num_errors_parsing_pred_intent)
         else:
