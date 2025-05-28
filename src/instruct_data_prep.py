@@ -2,7 +2,6 @@ import json
 from tqdm import tqdm
 from utils import *
 from transformers import AutoTokenizer
-from src.utils import *
 from datetime import datetime
 
 def get_icl_str(icl_examples, model_name):
