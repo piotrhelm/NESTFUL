@@ -86,8 +86,11 @@ def eval_code(args, generate_params):
         api_client=APIClient(watsonx_credentials),
         project_id=watsonx_credentials["project_id"],
     )
-        
-    prompts = [sample["input"] for sample in instruct_data][:64]
+    
+    if args.limit > 0:
+        prompts = [sample["input"] for sample in instruct_data][:args.limit]
+    else: 
+        prompts = [sample["input"] for sample in instruct_data]
 
     print("### Starting Generation...")
     response, output_list = [], []
@@ -123,6 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--max_tokens", type=int, default=1000)
     parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--limit", type=int, default=0)
     
     args = parser.parse_args()
     print(args)
