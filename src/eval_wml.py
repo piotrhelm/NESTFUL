@@ -7,6 +7,7 @@ from ibm_watsonx_ai import APIClient
 from ibm_watsonx_ai.foundation_models import ModelInference
 from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as GenParams
 
+from wml_credentials import wml_credentials
 
 supported_models = {
     "granite-3-3-8b-instruct": {
@@ -38,11 +39,7 @@ supported_models = {
 
 
 # TEMPORARY SOLUTION
-watsonx_credentials = {
-    "apikey": "",
-    "url": "https://yp-qa.ml.cloud.ibm.com",
-    "project_id":  ""
-}
+watsonx_credentials = wml_credentials
 
 
 def prepare_generate_params(args):
