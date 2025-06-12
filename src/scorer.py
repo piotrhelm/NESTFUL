@@ -31,7 +31,6 @@ LLAMA_MODELS = [
     "llama-3-1-405b-instruct-fp8",
     "Llama-3.2-11B-Vision-Instruct",
     "Llama-3.2-90B-Vision-Instruct",
-    "Llama-3.3-70B-Instruct",
     "Llama-3.1-70B-Instruct"
 ]
 
@@ -175,6 +174,8 @@ def calculate_scores(predictions, model_name, executable_func_dir, intents_only=
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_granite_20b_function_calling_output(item, num_errors_parsing_pred_intent)
         elif model_name == 'llama-3-70b-instruct' or model_name == "llama-3-1-405b-instruct":
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_llama_3_70b_instruct(item, num_errors_parsing_pred_intent)
+        elif model_name == "Llama-3.3-70B-Instruct":
+            pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_llama_3_3_70b_instruct(item, num_errors_parsing_pred_intent)       
         elif model_name == 'Mistral-7B-Instruct-v0.3' or model_name == "mixtral_8x7b_instruct_v01" or model_name == "Mixtral-8x22B-Instruct-v0.1":
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_mistral_7b_instruct_v0_3(item, num_errors_parsing_pred_intent)
         elif model_name == 'Hermes-2-Pro-Mistral-7B':

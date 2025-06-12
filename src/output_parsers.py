@@ -299,6 +299,68 @@ def parse_llama_3_70b_instruct(item, num_errors_parsing_pred_intent, skip_ground
 
     return pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors 
 
+def parse_llama_3_3_70b_instruct(item, num_errors_parsing_pred_intent, skip_grounding=False):
+    pred_has_parsing_errors = False
+    pred_func_calls, gold_func_calls = [], []
+    pred_dict_list, gold_dict_list = [], []
+    ## Gold
+    gold_dict_list = json.loads(item['output'])
+    if skip_grounding:
+        gold_func_calls = [json.dumps(func) for func in gold_dict_list]
+    else:
+        gold_func_calls = ground_seq_nested_repsonse(gold_dict_list)
+        gold_func_calls = [json.dumps(func) for func in gold_func_calls]
+    
+    ## Pred
+    # removing tags like <|eom_id|> from generated_text
+    pred = remove_tags_from_generated_text(item['generated_text']).strip()
+
+    # solving problem with divisions eg. {"val" : 3/5} which is incorrect for json
+    pred_fixed = re.sub(r'\d+\s*/\s*\d+', eval_fraction, pred)
+
+    pred_dict_list = json.loads(pred_fixed)
+    if not isinstance(pred_dict_list, list):
+        pred_dict_list = [pred_dict_list]
+    
+    try:     
+        pred_dict_list = [p for p in pred_dict_list if not p['name'] == "var_result"]
+        if skip_grounding:
+            pred_func_calls = [json.dumps(func) for func in pred_dict_list]
+        else:
+            pred_func_calls = ground_seq_nested_repsonse(pred_dict_list) if 'label' in pred else pred_dict_list
+            pred_func_calls = [json.dumps(func) for func in pred_func_calls]
+    except:
+        try:
+            if pred.startswith("[") and pred.endswith("]"):
+                pred = pred[1:-1]
+                pred_list = pred.split("),")
+                new_pred_list = []
+                for p in pred_list:
+                    if p.strip().endswith(')'):
+                        new_pred_list.append(p)
+                    else:
+                        new_pred_list.append(p + ")")
+                pred_func_calls = []
+                for p in new_pred_list:
+                    intent = p.split("(", 1)[0]
+                    slot_str = p.split("(", 1)[1][:-1]
+                    slots = get_deli_sep_str_list(slot_str)
+                    arg_dict = {}
+                    for s in slots:
+                        s_n, s_v = s.split("=")[0].strip(), s.split("=")[1].strip()
+                        arg_dict[s_n] = process_slot_value(s_v)
+                    pred_func_calls.append(json.dumps({
+                        "name": intent,
+                        "arguments": arg_dict
+                    }))
+            else:
+                num_errors_parsing_pred_intent += 1
+                pred_has_parsing_errors = True
+        except:
+            num_errors_parsing_pred_intent += 1
+            pred_has_parsing_errors = True
+    return pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors 
+
 def parse_mistral_7b_instruct_v0_3(item, num_errors_parsing_pred_intent, skip_grounding=False):
     pred_has_parsing_errors = False
     pred_func_calls, gold_func_calls = [], []
