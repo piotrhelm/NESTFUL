@@ -315,13 +315,10 @@ def parse_llama_3_3_70b_instruct(item, num_errors_parsing_pred_intent, skip_grou
     pred = remove_tags_from_generated_text(item['generated_text']).strip()
 
     # solving problem with divisions eg. {"val" : 3/5} which is incorrect for json
-    pred_fixed = re.sub(r'\d+\s*/\s*\d+', eval_fraction, pred)
+    pred = re.sub(r'\d+\s*/\s*\d+', eval_fraction, pred)
 
-    pred_dict_list = json.loads(pred_fixed)
-    if not isinstance(pred_dict_list, list):
-        pred_dict_list = [pred_dict_list]
-    
-    try:     
+    try:
+        pred_dict_list = json.loads(pred)        
         pred_dict_list = [p for p in pred_dict_list if not p['name'] == "var_result"]
         if skip_grounding:
             pred_func_calls = [json.dumps(func) for func in pred_dict_list]
@@ -358,6 +355,7 @@ def parse_llama_3_3_70b_instruct(item, num_errors_parsing_pred_intent, skip_grou
         except:
             num_errors_parsing_pred_intent += 1
             pred_has_parsing_errors = True
+
     return pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors 
 
 def parse_mistral_7b_instruct_v0_3(item, num_errors_parsing_pred_intent, skip_grounding=False):
