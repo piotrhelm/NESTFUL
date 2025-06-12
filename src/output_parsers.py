@@ -1,4 +1,17 @@
 import json, re, ast_utils
+from ast import literal_eval
+
+def remove_tags_from_generated_text(generated_text):
+    tag_template = r"<\|.*?\|>"
+    tags = re.findall(tag_template, generated_text)
+    print(tags)
+    for tag in tags:
+        generated_text = generated_text.replace(tag, "")
+    return generated_text
+
+def eval_fraction(match):
+    return str(eval(match.group(0)))
+
 
 def get_deli_sep_str_list(text, deli = ','):
     def find(s, ch):
