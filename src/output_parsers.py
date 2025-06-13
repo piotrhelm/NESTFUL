@@ -120,6 +120,52 @@ def parse_granite_20b_function_calling_output(item, num_errors_parsing_pred_inte
 
     return pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors 
 
+def parse_custom_mistral_output(item, num_errors_parsing_pred_intent, skip_grounding=False):
+    pred_has_parsing_errors = False
+    pred_func_calls, gold_func_calls = [], []
+    pred_dict_list, gold_dict_list = [], []
+
+    gold_raw = item.get("output")
+    gold_dict_list = gold_raw if isinstance(gold_raw, list) else json.loads(gold_raw)
+    gold_func_calls = (
+        [json.dumps(f) for f in gold_dict_list]
+        if skip_grounding
+        else [json.dumps(f) for f in ground_seq_nested_repsonse(gold_dict_list)]
+    )
+
+    # try:
+    pred_raw = (item.get("generated_text") or item.get("output") or "")
+    print('\nPRED RAW PROTOTYPE:', pred_raw, )
+    pred_raw.replace("<|tool_call|>", "").replace("```json", "").replace("```", "").replace("\n", "").strip()
+    print('\nPRED RAW CLEANED:', pred_raw)
+    pred_raw = pred_raw.split('[]]')[-1]
+    if pred_raw and not pred_raw.startswith("["):
+        pred_raw = "[" + pred_raw
+    if pred_raw and not pred_raw.endswith("]"):
+        pred_raw = pred_raw + "]"
+    print("\nFINAL PRED RAW", pred_raw)
+    pred_dict_list = pred_raw if isinstance(pred_raw, list) else json.loads(pred_raw)
+    pred_func_calls = (
+        [json.dumps(f) for f in pred_dict_list]
+        if skip_grounding
+        else [json.dumps(f) for f in ground_seq_nested_repsonse(pred_dict_list)]
+        )
+    # except Exception:
+    #     num_errors_parsing_pred_intent += 1
+    #     pred_has_parsing_errors = True
+
+    return (
+        pred_func_calls,
+        gold_func_calls,
+        pred_dict_list,
+        gold_dict_list,
+        num_errors_parsing_pred_intent,
+        pred_has_parsing_errors,
+    )
+
+
+
+
 def parse_granite_3_output(item, num_errors_parsing_pred_intent, skip_grounding=False):
     pred_has_parsing_errors = False
     pred_func_calls, gold_func_calls = [], []
