@@ -98,7 +98,7 @@ def granite_3_3_prompt_input(input, function, icl_str, model):
     formatted_prompt = tokenizer.apply_chat_template(
         prompts, function, tokenize=False, add_generation_prompt=True, strftime_now=datetime.now().strftime
     )
-
+    print(tokenizer.chat_template)
     granite_system_prompt = "You are Granite, developed by IBM. You are a helpful assistant with access to the following tools. When a tool is required to answer the user's query, respond only with <|tool_call|> followed by a JSON list of tools used. If a tool does not exist in the provided list of tools, notify the user that you do not have the ability to fulfill the request."
 
     granite_system_prompt_with_nested = granite_system_prompt + '\nDO NOT try to answer the user question, just invoke the tools needed to respond to the user, if any. The output MUST strictly adhere to the following JSON format: <|tool_call|>[{\"name\": \"func_name1\", \"arguments\": {\"argument1\": \"value1\", \"argument2\": \"value2\"}, \"label\": \"$var_1\"}, ... (more tool calls as required)]. Please make sure the parameter type is correct and follow the documentation for parameter format. If no function call is needed, please directly output an empty list.\nHere are some examples:\n' + icl_str
@@ -154,6 +154,44 @@ def granite_prompt_input(input, function, icl_str):
 
     return formatted_prompt
 
+def mistral_prompt_input(input, function, icl_str, model):
+    SYSTEM_PROMPT = (
+    "You are Mistral Medium 3, a large language model developed by Mistral AI.\n"
+    "You have access to external tools via function calls.\n"
+    "Do not fabricate tool outputs or simulate tool behavior. Always wait for the tool result to continue.\n"
+    "Remember that result of function calling chain must directly answer the question in its form."
+    "You are forbidden to return empty outputs!")
+    BASE_MODEL ="mistralai/Mistral-Large-Instruct-2411"
+
+    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
+
+    mistral_system_prompt = SYSTEM_PROMPT
+    system_prompt_with_nested = mistral_system_prompt + '\nDO NOT try to answer the user question, just invoke the tools needed to respond to the user, if any. The output MUST strictly adhere to the following JSON format: [{\"name\": \"func_name1\", \"arguments\": {\"argument1\": \"value1\", \"argument2\": \"value2\"}, \"label\": \"$var_1\"}, ... (more tool calls as required)]. Please make sure the parameter type is correct and follow the documentation for parameter format. If no function call is needed, please directly output an empty list. Make sure that json is correctly formatted.\nHere are some examples:\n' + icl_str
+
+    messages = [
+        {'role': 'system', 'content': mistral_system_prompt},
+        {"role": "user", "content": input}
+    ]
+        
+    print('\nINPUT\n', input)
+    formatted_prompt = tokenizer.apply_chat_template(
+        messages, function, tokenize=False, add_generation_prompt=True, strftime_now=datetime.now().strftime
+    )
+    print('\nFORMATTED INPUT\n', formatted_prompt)
+    
+    # tokenizer_test= get_auto_tokenizer("deepseek-ai/DeepSeek-V3-0324")
+    # formatted_prompt_test = tokenizer_test.apply_chat_template(
+    #     messages, function, tokenize=False, add_generation_prompt=True
+    # )
+    # print('\nFORMATTED INPUT FOR TEST\n', formatted_prompt_test)
+    if mistral_system_prompt  in formatted_prompt:
+        formatted_prompt = formatted_prompt.replace( mistral_system_prompt, system_prompt_with_nested)
+        #formatted_prompt = formatted_prompt.replace(tag, system_prompt_with_nested + tag)
+    else:
+        print("*** ERROR in Tokenization and Apply Chat-Template ***")
+    print('\n START FINAL FORMATTED INPUT \n', formatted_prompt, '\nEND FINAL FORMATTED INPUT\n',)
+    return formatted_prompt
+
 def deepseek_prompt_input(input, function, icl_str):
     BASE_MODEL="deepseek-ai/DeepSeek-V3-0324"
     tokenizer_deepseek = get_auto_tokenizer(BASE_MODEL)
@@ -170,6 +208,7 @@ def deepseek_prompt_input(input, function, icl_str):
     formatted_prompt = tokenizer_deepseek.apply_chat_template(
         prompts, function, tokenize=False, add_generation_prompt=True
     )
+    print('\nINPUT\n', input)
     return formatted_prompt
 
 def get_instruct_data(data, model, model_name, icl_ex_count=3):
@@ -192,6 +231,10 @@ def get_instruct_data(data, model, model_name, icl_ex_count=3):
             input_prompt = prompt_dict["LLaMa-3.1"].format(FUNCTION_STR=json.dumps(sample['tools']), ICL_EXAMPLES=icl_str, QUERY=sample['input'])
         elif model_name in DEEPSEEK:
             input_prompt = deepseek_prompt_input(sample['input'], sample["tools"], icl_str)
+        elif model_name in ['mistral-small-24b-instruct-2501','mistral-medium-2505','Mistral-Small-3.1-24B-Instruct-2503', 'mistral-large']:
+            input_prompt = mistral_prompt_input(sample['input'], json.loads(sample['tools']), icl_str, model)
+
+            
         else:
             try:
                 input_prompt = prompt_dict[model_name].format(FUNCTION_STR=json.dumps(sample['tools']), ICL_EXAMPLES=icl_str, QUERY=sample['input'])
