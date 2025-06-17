@@ -161,32 +161,71 @@ def mistral_prompt_input(input, function, icl_str, model):
     "Do not fabricate tool outputs or simulate tool behavior. Always wait for the tool result to continue.\n"
     "Remember that result of function calling chain must directly answer the question in its form."
     "You are forbidden to return empty outputs!")
-    BASE_MODEL ="mistralai/Mistral-Large-Instruct-2411"
 
-    tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
+    chat_template = r"""
+    {%- set today = strftime_now("%Y-%m-%d") %}
+    {%- set default_system_message = "You are Mistral Small 3, a Large Language Model (LLM) created by Mistral AI, a French startup headquartered in Paris.\nYour knowledge base was last updated on 2023-10-01. The current date is " + today + ".\n\nWhen you're not sure about some information, you say that you don't have the information and don't make up anything.\nIf the user's question is not clear, ambiguous, or does not provide enough context for you to accurately answer the question, you do not try to answer it right away and you rather ask the user to clarify their request (e.g. \"What are some good restaurants around me?\" ⇒ \"Where are you?\" or \"When is the next flight to Tokyo\" ⇒ \"Where do you travel from?\")" %}
 
+    {{- bos_token }}
+
+    {%- if messages[0]['role'] == 'system' %}
+        {%- if messages[0]['content'] is string %}
+            {%- set system_message = messages[0]['content'] %}
+        {%- else %}
+            {%- set system_message = messages[0]['content'][0]['text'] %}
+        {%- endif %}
+        {%- set loop_messages = messages[1:] %}
+    {%- else %}
+        {%- set system_message = default_system_message %}
+        {%- set loop_messages = messages %}
+    {%- endif %}
+    {{- '[SYSTEM_PROMPT]' + system_message + '[/SYSTEM_PROMPT]' }}
+
+    {%- for message in loop_messages %}
+        {%- if message['role'] == 'user' %}
+            {%- if message['content'] is string %}
+                {{- '[INST]' + message['content'] + '[/INST]' }}
+            {%- else %}
+                {{- '[INST]' }}
+                {%- for block in message['content'] %}
+                    {%- if block['type'] == 'text' %}
+                        {{- block['text'] }}
+                    {%- elif block['type'] in ['image', 'image_url'] %}
+                        {{- '[IMG]' }}
+                    {%- else %}
+                        {{- raise_exception('Only text and image blocks are supported in message content!') }}
+                    {%- endif %}
+                {%- endfor %}
+                {{- '[/INST]' }}
+            {%- endif %}
+        {%- elif message['role'] == 'system' %}
+            {{- '[SYSTEM_PROMPT]' + (message['content'] if message['content'] is string else message['content'][0]['text']) + '[/SYSTEM_PROMPT]' }}
+        {%- elif message['role'] == 'assistant' %}
+            {{- (message['content'] if message['content'] is string else message['content'][0]['text']) + eos_token }}
+        {%- else %}
+            {{- raise_exception('Only user, system and assistant roles are supported!') }}
+        {%- endif %}
+    {%- endfor %}
+    """
+    tokenizer = AutoTokenizer.from_pretrained(
+        "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+        use_fast=False,         
+        trust_remote_code=True
+    )
+    tokenizer.chat_template = chat_template
     mistral_system_prompt = SYSTEM_PROMPT
-    system_prompt_with_nested = mistral_system_prompt + '\nDO NOT try to answer the user question, just invoke the tools needed to respond to the user, if any. The output MUST strictly adhere to the following JSON format: [{\"name\": \"func_name1\", \"arguments\": {\"argument1\": \"value1\", \"argument2\": \"value2\"}, \"label\": \"$var_1\"}, ... (more tool calls as required)]. Please make sure the parameter type is correct and follow the documentation for parameter format. If no function call is needed, please directly output an empty list. Make sure that json is correctly formatted.\nHere are some examples:\n' + icl_str
-
+    system_prompt_with_nested = mistral_system_prompt + '\nDO NOT try to answer the user question, just invoke the tools needed to respond to the user, if any. The output MUST strictly adhere to the following JSON format: [{\"name\": \"func_name1\", \"arguments\": {\"argument1\": \"value1\", \"argument2\": \"value2\"}, \"label\": \"$var_1\"}, ... (more tool calls as required)]. Please make sure the parameter type is correct and follow the documentation for parameter format. If no function call is needed, please directly output an empty list. Make sure that json is correctly formatted.\nHere are some examples:\n' + icl_str + '\nRemember main rule - you are allowed to output ONLY format of output mentioned before. You will be severly punished for misbehaving on that part.'
     messages = [
         {'role': 'system', 'content': mistral_system_prompt},
         {"role": "user", "content": input}
     ]
         
-    print('\nINPUT\n', input)
     formatted_prompt = tokenizer.apply_chat_template(
-        messages, function, tokenize=False, add_generation_prompt=True, strftime_now=datetime.now().strftime
+        messages,  tokenize=False, tools=function, add_generation_prompt=True, strftime_now=datetime.now().strftime
     )
-    print('\nFORMATTED INPUT\n', formatted_prompt)
-    
-    # tokenizer_test= get_auto_tokenizer("deepseek-ai/DeepSeek-V3-0324")
-    # formatted_prompt_test = tokenizer_test.apply_chat_template(
-    #     messages, function, tokenize=False, add_generation_prompt=True
-    # )
-    # print('\nFORMATTED INPUT FOR TEST\n', formatted_prompt_test)
+
     if mistral_system_prompt  in formatted_prompt:
         formatted_prompt = formatted_prompt.replace( mistral_system_prompt, system_prompt_with_nested)
-        #formatted_prompt = formatted_prompt.replace(tag, system_prompt_with_nested + tag)
     else:
         print("*** ERROR in Tokenization and Apply Chat-Template ***")
     print('\n START FINAL FORMATTED INPUT \n', formatted_prompt, '\nEND FINAL FORMATTED INPUT\n',)

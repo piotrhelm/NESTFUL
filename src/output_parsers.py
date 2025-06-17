@@ -1,4 +1,4 @@
-import json, re, ast_utils
+import json, regex as re, ast_utils
 
 def get_deli_sep_str_list(text, deli = ','):
     def find(s, ch):
@@ -119,52 +119,6 @@ def parse_granite_20b_function_calling_output(item, num_errors_parsing_pred_inte
         pred_has_parsing_errors = True
 
     return pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors 
-
-def parse_custom_mistral_output(item, num_errors_parsing_pred_intent, skip_grounding=False):
-    pred_has_parsing_errors = False
-    pred_func_calls, gold_func_calls = [], []
-    pred_dict_list, gold_dict_list = [], []
-
-    gold_raw = item.get("output")
-    gold_dict_list = gold_raw if isinstance(gold_raw, list) else json.loads(gold_raw)
-    gold_func_calls = (
-        [json.dumps(f) for f in gold_dict_list]
-        if skip_grounding
-        else [json.dumps(f) for f in ground_seq_nested_repsonse(gold_dict_list)]
-    )
-
-    # try:
-    pred_raw = (item.get("generated_text") or item.get("output") or "")
-    print('\nPRED RAW PROTOTYPE:', pred_raw, )
-    pred_raw.replace("<|tool_call|>", "").replace("```json", "").replace("```", "").replace("\n", "").strip()
-    print('\nPRED RAW CLEANED:', pred_raw)
-    pred_raw = pred_raw.split('[]]')[-1]
-    if pred_raw and not pred_raw.startswith("["):
-        pred_raw = "[" + pred_raw
-    if pred_raw and not pred_raw.endswith("]"):
-        pred_raw = pred_raw + "]"
-    print("\nFINAL PRED RAW", pred_raw)
-    pred_dict_list = pred_raw if isinstance(pred_raw, list) else json.loads(pred_raw)
-    pred_func_calls = (
-        [json.dumps(f) for f in pred_dict_list]
-        if skip_grounding
-        else [json.dumps(f) for f in ground_seq_nested_repsonse(pred_dict_list)]
-        )
-    # except Exception:
-    #     num_errors_parsing_pred_intent += 1
-    #     pred_has_parsing_errors = True
-
-    return (
-        pred_func_calls,
-        gold_func_calls,
-        pred_dict_list,
-        gold_dict_list,
-        num_errors_parsing_pred_intent,
-        pred_has_parsing_errors,
-    )
-
-
-
 
 def parse_granite_3_output(item, num_errors_parsing_pred_intent, skip_grounding=False):
     pred_has_parsing_errors = False
@@ -524,3 +478,56 @@ def parse_deepseek_output(item, num_errors_parsing_pred_intent, skip_grounding=F
         num_errors_parsing_pred_intent += 1
         pred_has_parsing_errors = True
     return pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors 
+
+def parse_custom_mistral_output(item, num_errors_parsing_pred_intent, skip_grounding=False):
+    pred_has_parsing_errors = False
+    pred_func_calls, gold_func_calls = [], []
+    pred_dict_list, gold_dict_list = [], []
+    gold_raw = item.get("output")
+    gold_dict_list = gold_raw if isinstance(gold_raw, list) else json.loads(gold_raw)
+    gold_func_calls = (
+        [json.dumps(f) for f in gold_dict_list]
+        if skip_grounding
+        else [json.dumps(f) for f in ground_seq_nested_repsonse(gold_dict_list)]
+    )
+
+    # try:
+    pred_raw = (item.get("generated_text") or item.get("output") or "").strip()
+    pred_raw = pred_raw.replace("<|tool_call|>", "").strip()
+    pred_raw = pred_raw.replace("```json", "").replace("```", "").replace("\n", "").strip()
+    pred_raw = '['+pred_raw[pred_raw.find('{'): pred_raw.rfind('}')+1]+']'
+    try:
+        pred_raw = re.sub(r'(\d+\s*[\+\-\*/]\s*\d+)', lambda m: str(eval(m.group(1))), pred_raw)
+    except:
+        pass
+    pred_raw = re.sub(r"'([^']+)'\s*:", r'"\1":', pred_raw)
+    pred_raw = pred_raw.replace("}]}]",'}]')
+    pred_raw = pred_raw.replace('][',", ")
+    pred_raw = pred_raw.replace('],[',", ")
+    pred_raw = pred_raw.replace('], [',", ")
+    pred_raw = pred_raw.replace('}]{',",")
+
+    
+    
+    try:
+        pred_dict_list = pred_raw if isinstance(pred_raw, list) else json.loads(pred_raw)
+    except:
+        pred_dict_list = []
+    try:
+        pred_func_calls = (
+            [json.dumps(f) for f in pred_dict_list]
+            if skip_grounding
+            else [json.dumps(f) for f in ground_seq_nested_repsonse(pred_dict_list)]
+            )
+    except Exception:
+        num_errors_parsing_pred_intent += 1
+        pred_has_parsing_errors = True
+
+    return (
+        pred_func_calls,
+        gold_func_calls,
+        pred_dict_list,
+        gold_dict_list,
+        num_errors_parsing_pred_intent,
+        pred_has_parsing_errors,
+    )

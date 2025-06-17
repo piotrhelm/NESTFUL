@@ -169,7 +169,7 @@ def calculate_scores(predictions, model_name, executable_func_dir, intents_only=
     counter = 1
     num_pred_examples_w_parsing_errors = 0
     for item in tqdm(predictions):
-
+        
         print(20*'<', f'EXAMPLE {counter}', 20*'>')
         counter +=1
         pred_has_parsing_errors = False
