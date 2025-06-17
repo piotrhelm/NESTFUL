@@ -8,13 +8,6 @@ def remove_tags_from_generated_text(generated_text):
         generated_text = generated_text.replace(tag, "")
     return generated_text
 
-def eval_fraction(match):
-    try:
-        return str(eval(match.group(0)))
-    except SyntaxError:
-        return match.group(0)
-
-
 def get_deli_sep_str_list(text, deli = ','):
     def find(s, ch):
         return [i for i, ltr in enumerate(s) if ltr == ch]
@@ -316,9 +309,6 @@ def parse_llama_3_3_70b_instruct(item, num_errors_parsing_pred_intent, skip_grou
     ## Pred
     # removing tags like <|eom_id|> from generated_text
     pred = remove_tags_from_generated_text(item['generated_text']).strip()
-
-    # solving problem with divisions eg. {"val" : 3/5} which is incorrect for json
-    pred = re.sub(r'\d+\s*/\s*\d+', eval_fraction, pred)
 
     try:
         pred_dict_list = json.loads(pred)        
