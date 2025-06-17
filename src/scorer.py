@@ -166,16 +166,19 @@ def calculate_scores(predictions, model_name, executable_func_dir, intents_only=
     all_accuracy_combined = []
     all_num_times_full_score = 0
     win_rate_list = []
-
+    counter = 1
     num_pred_examples_w_parsing_errors = 0
     for item in tqdm(predictions):
+        
+        print(20*'<', f'EXAMPLE {counter}', 20*'>')
+        counter +=1
         pred_has_parsing_errors = False
         pred_func_calls, gold_func_calls = [], []
         if model_name == 'Granite-20B-FunctionCalling':
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_granite_20b_function_calling_output(item, num_errors_parsing_pred_intent)
         elif model_name == 'llama-3-70b-instruct' or model_name == "llama-3-1-405b-instruct":
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_llama_3_70b_instruct(item, num_errors_parsing_pred_intent)
-        elif model_name == 'Mistral-7B-Instruct-v0.3' or model_name == "mixtral_8x7b_instruct_v01" or model_name == "Mixtral-8x22B-Instruct-v0.1":
+        elif model_name == 'Mistral-7B-Instruct-v0.3' or model_name == "mixtral_8x7b_instruct_v01" or model_name == "Mixtral-8x22B-Instruct-v0.1" or model_name == 'mistral-medium-2505':
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_mistral_7b_instruct_v0_3(item, num_errors_parsing_pred_intent)
         elif model_name == 'Hermes-2-Pro-Mistral-7B':
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_hermes_2_pro_mistral_7B(item, num_errors_parsing_pred_intent)
@@ -195,9 +198,12 @@ def calculate_scores(predictions, model_name, executable_func_dir, intents_only=
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_llama_3_70b_instruct(item, num_errors_parsing_pred_intent)
         elif model_name in DEEPSEEK:
             pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_deepseek_output(item, num_errors_parsing_pred_intent)
-        else:
-            raise Exception("model not handled")
+        elif model_name == 'Mistral-Small-3.1-24B-Instruct-2503':
+            pred_func_calls, gold_func_calls, pred_dict_list, gold_dict_list, num_errors_parsing_pred_intent, pred_has_parsing_errors = parse_custom_mistral_output(item, num_errors_parsing_pred_intent)
 
+        else:
+            raise Exception("model not handled.")
+        print("\n\npred_func_calls\n",pred_func_calls, '\ngold_func_calls\n',gold_func_calls, '\npred_dict_list\n', pred_dict_list,'\ngold_dict_list\n', gold_dict_list,'\nerrors\n', num_errors_parsing_pred_intent,'\n','haserrors\n', pred_has_parsing_errors,'\n')
         gold_apis_names, pred_apis_names = [], []
         for f in pred_func_calls:
             if not f: continue
@@ -301,8 +307,8 @@ def calculate_scores(predictions, model_name, executable_func_dir, intents_only=
         ## WinRate
         if win_rate_flag:
             win_score = calculate_win_score(pred_dict_list, item["gold_answer"], item["tools"], executable_func_dir)
+            print('WIN SCORE:', win_score)
             win_rate_list.append(win_score)
-
     p_intent, r_intent, f1_intent = compute_score_sklearn(gold_output_intent, pred_output_intent)
     p_slot, r_slot, f1_slot = compute_score_sklearn(gold_output_slot, pred_output_slot)
 
