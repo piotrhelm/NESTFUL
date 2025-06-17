@@ -9,7 +9,10 @@ def remove_tags_from_generated_text(generated_text):
     return generated_text
 
 def eval_fraction(match):
-    return str(eval(match.group(0)))
+    try:
+        return str(eval(match.group(0)))
+    except SyntaxError:
+        return match.group(0)
 
 
 def get_deli_sep_str_list(text, deli = ','):
