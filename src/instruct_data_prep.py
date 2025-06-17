@@ -115,9 +115,7 @@ def llama_3_3_prompt_input(input, function, icl_str, model):
     system_prompt = """Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.Do not use variables."""
 
     system_prompt_with_nested = '\nDO NOT try to answer the user question, just invoke the tools needed to respond to the user, if any. The output MUST strictly adhere to the following JSON format: [{\"name\": \"func_name1\", \"arguments\": {\"argument1\": \"value1\", \"argument2\": \"value2\"}, \"label\": \"$var_1\"}, ... (more tool calls as required)]. Please make sure the parameter type is correct and follow the documentation for parameter format. If no function call is needed, please directly output an empty list.\nHere are some examples:\n' + icl_str
-    
-    # tag = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
-    
+ 
     messages = [
         {'role': 'system', 'content': system_prompt_with_nested},
         {"role": "user", "content": input}
@@ -129,9 +127,9 @@ def llama_3_3_prompt_input(input, function, icl_str, model):
 
     if system_prompt in formatted_prompt:
         formatted_prompt = formatted_prompt.replace(system_prompt, "")
-        #formatted_prompt = formatted_prompt.replace(tag, system_prompt_with_nested + tag)
     else:
         print("*** ERROR in Tokenization and Apply Chat-Template ***")
+
     return formatted_prompt
 
 def granite_prompt_input(input, function, icl_str):
